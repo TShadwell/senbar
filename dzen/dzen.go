@@ -1,6 +1,6 @@
 package dzen
 import(
-	"github.com/tshadwell/senbar/textwidth"
+	"github.com/TShadwell/senbar/textwidth"
 	"strings"
 	"strconv"
 	"math"

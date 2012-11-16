@@ -10,4 +10,4 @@ To get it, do this:
 
 `go get github.com/tshadwell/senbar/dzen`
 
-`go get github.com/tshadwell/senbar/main`
+`go get github.com/tshadwell/senbar/senbar`
