@@ -5,7 +5,7 @@ import(
 	"github.com/TShadwell/senbar/textwidth"
 	"strings"
 	"strconv"
-	//"fmt"
+	"math"
 )
 func contains(haystack []int, needle int) bool{
 	for _, hay := range haystack{
