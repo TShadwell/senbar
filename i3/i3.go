@@ -166,7 +166,9 @@ type Workspace struct{
 	Visible bool
 	Name,
 	Output string
-	Num uint 
+	//Num is an undocumented feature in i3, and appears to be some sort of \d+
+	//regex on desktop names.
+	Num uint
 	Rect Rectangle
 }
 //Output represents the attributes of one output, or display screen in i3.
@@ -194,6 +196,8 @@ type TreeNode struct{
 }
 //EventResponse is for event types such as 'focus'.
 type EventResponse string
+//i3Message is used to unpack the two int32s from
+//the socket.
 type i3Message struct{
 	PayloadLength	uint32
 	PayloadType		uint32
@@ -246,6 +250,8 @@ func makeLayout(layoutType string) LayoutType{
 }
 func packi3Message(payload string, messageType RequestType) []byte{
 	/*
+	By example:
+
 	b'i3-ipc\t\x00\x00\x00\x01\x00\x00\x00COOLBEANS'
 	b'i3-ipc\x08\x00\x00\x00\x01\x00\x00\x00COOLBENS'
 	b'i3-ipc - magic string
@@ -286,12 +292,6 @@ func packi3Message(payload string, messageType RequestType) []byte{
 		msg[rolling:],
 		nPayload)
 	return msg
-}
-func f64(x interface{}) uint32{
-	if x != nil{
-		return uint32(x.(float64))
-	}
-	return 0
 }
 func listen(){
 	buffer := make(
@@ -390,31 +390,6 @@ func listen(){
 					case OUTPUTS:
 						cOutputs:=make([]Output, 0)
 						json.Unmarshal(jsonString, &cOutputs)
-						/*
-						payloadJSON:= getPayloadJSON()
-						outputs:= payloadJSON.([]interface{})
-
-						cOutputs := make([]Output, len(outputs))
-						for i, output := range outputs{
-							outpu:=output.(map[string]interface{})
-
-							rect:= outpu["rect"].(map[string]interface{})
-							current, ok := outpu["current_workspace"].(string)
-							if ok != true{
-								current=""
-							}
-							cOutputs[i]=Output{
-								outpu["name"].(string),
-								outpu["active"].(bool),
-								outpu["primary"].(bool),
-								current,
-								Rectangle{
-									f64(rect["height"]),
-									f64(rect["width"]),
-									f64(rect["x"]),
-									f64(rect["y"])}}
-						}
-						*/
 						ChOutputs		<-		cOutputs
 					case TREE:
 						var root TreeNode
@@ -422,9 +397,6 @@ func listen(){
 						ChTree			<-		root
 					case MARKS:
 						//payloadJSON:= getPayloadJSON()
-						//interfaceArray	:=	payloadJSON.([]interface{}).([]string).(Marks)
-						/* Make this work
-						processedJSON = interfaceArray.([]string)*/
 					case BAR_CONFIG:
 						//payloadJSON:= getPayloadJSON()
 						ChBar_config	<-		BarConfig{}

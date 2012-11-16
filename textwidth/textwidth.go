@@ -1,3 +1,4 @@
+//Package textwidth provides a function to give the size of given text in given font in px.
 package textwidth
 /*
 #include<stdio.h>
@@ -85,6 +86,7 @@ prepare()
 //#cgo LDFLAGS: -lX11
 import "C"
 
+//Get takes the fully qualified font name of a font and some text, and returns an int64 of the text's length.
 func Get(fontName, text string) int64{
 	C.setfont(C.CString(fontName))
 	return int64(C.textw(C.CString(text), C.uint(len(text)+1)))
