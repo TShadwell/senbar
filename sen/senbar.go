@@ -4,8 +4,8 @@ package main
  * in the language you are learning using sockets and dzen2.
  */
 import(
-	"github.com/tshadwell/senbar/i3"
-	"github.com/tshadwell/senbar/dzen"
+	"github.com/TShadwell/senbar/i3"
+	"github.com/TShadwell/senbar/dzen"
 	"io"
 	"os/exec"
 	"os"
