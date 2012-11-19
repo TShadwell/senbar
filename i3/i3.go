@@ -7,13 +7,13 @@
 //helper functions that can be used as examples if lower level interaction is needed.
 package i3
 import(
-	"net"
 	"encoding/json"
 	"os/exec"
 	"encoding/binary"
 	"bytes"
 	"strconv"
 	"strings"
+	"net"
 )
 const(
 	i3MagicString	= "i3-ipc"
