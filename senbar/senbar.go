@@ -1,8 +1,4 @@
 package main
-/*
- * Trial by fire of programming: write a desktop interface
- * in the language you are learning using sockets and dzen2.
- */
 import(
 	"github.com/TShadwell/senbar/i3"
 	"github.com/TShadwell/senbar/dzen"
@@ -60,7 +56,6 @@ func (bar *i3Bar) spawn(){
 	}
 	bar.process.Start()
 }
-//var update = make(chan bool, 5)
 var update bool = false
 func remove (bar []i3Bar, pos uint){
 	bar[pos], bar = bar[len(bar)-1], bar[:len(bar)-1]

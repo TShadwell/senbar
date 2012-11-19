@@ -1,10 +1,11 @@
+
+//Package dzen provides some functions to help with using dzen in Go.
 package dzen
 import(
 	"github.com/TShadwell/senbar/textwidth"
 	"strings"
 	"strconv"
 	"math"
-	//"fmt"
 )
 func contains(haystack []int, needle int) bool{
 	for _, hay := range haystack{
@@ -14,7 +15,8 @@ func contains(haystack []int, needle int) bool{
 	}
 	return false
 }
-func hasSwitches(t string) int{
+//HasSwitches returns the number of dzen switches (^()) not negated (^^) in a given string.
+func HasSwitches(t string) int{
 	reference := make([]int, 0)
 	for i, chr := range t{
 		if chr == '^' && !contains(reference, i){
@@ -29,21 +31,22 @@ func hasSwitches(t string) int{
 	}
 	return -1
 }
+//Pie returns a string of dzen commands to generate a pie with a sector
+//in colourB whose proportion to 360 degrees is the same as perc.
 func Pie(radius uint8, perc float64, colourA, colourB string) string{
 	radiusString:=strconv.Itoa(int(radius))
 	degreeString:=strconv.Itoa(int(math.Floor(360*perc)))
 	return "^ib(1)^fg(" + colourA + ")^c(" + radiusString + ")^p(-" + radiusString + ")^fg(" + colourB + ")^c(" +radiusString + "-" + degreeString + ")^fg()"
 }
+//AlignRight aligns given text to the right hand side, parsing some
+//special flags like ^r(), ^ro() (rectangle) and ^c(), ^co() to factor them in.
+//The iconWidth parameter can be used to specify the extra width to factor in when
+//an icon is encountered.
+//This function is still very unintelligent, so don't do anything unexpected!
 func AlignRight(text string, iconWidth int, xFontName string) string{
-	/*
-	 * This function removes all special stuff from text,
-	 * takes into account 'sized special stuff' like rectangles,
-	 * and icons (if provided), then does calculations to align the text
-	 * to the right. Easy!
-	 */
 	oText := text
 	modifier :=0
-	caretPos:= hasSwitches(oText)
+	caretPos:= HasSwitches(oText)
 	for caretPos != -1{
 		x:=oText[caretPos:]
 		if iconWidth != -1{
@@ -78,7 +81,7 @@ func AlignRight(text string, iconWidth int, xFontName string) string{
 		}
 		x=x[strings.IndexRune(x,')')+1:]
 		oText=oText[:caretPos]+x
-		caretPos=hasSwitches(oText)
+		caretPos=HasSwitches(oText)
 	}
 	return "^p(_RIGHT)^p(-"+strconv.Itoa(int(textwidth.Get(xFontName, oText))+modifier)+")"+text+"^p()"
 }
