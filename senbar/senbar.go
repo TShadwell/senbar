@@ -39,6 +39,7 @@ type i3State struct{
 	now time.Time
 }
 var currentState i3State
+var polling bool
 func (bar *i3Bar) spawn(){
 	bar.process=exec.Command(
 	"dzen2",
@@ -245,5 +246,6 @@ func main(){
 		restart()
 
 	}
+	Pollers.start()
 
 }
