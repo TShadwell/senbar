@@ -241,6 +241,4 @@ func main(){
 		restart()
 
 	}
-	Pollers.start()
-
 }
