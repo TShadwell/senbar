@@ -1,10 +1,37 @@
 //(c) TNJ Shadwell under the MIT license:
-//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+//Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"),
+//to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 //The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+//THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. 
+//IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 //Package i3 facilitates communication with the i3 window manager by providing channels through which to communicate with it, and some
 //helper functions that can be used as examples if lower level interaction is needed.
+//
+//Recieving events:
+//
+//	ok := i3.Subscribe([]string{
+//		"workspace",
+//		"output"
+//	})
+//
+//	if !ok{
+//		panic("Unable to subscribe to events!")
+//	}
+//
+//	go (func(){
+//		for{
+//			<-i3.ChWorkspace
+//			fmt.Println("Workspace changed.")
+//		}
+//	})()
+//
+//	go(func(){
+//		for{
+//			<-i3.ChOutput
+//			fmt.Println("Output changed.")
+//		}
+//	})()
 package i3
 import(
 	"encoding/json"
@@ -19,9 +46,9 @@ const(
 	i3MagicString	= "i3-ipc"
 	chunkSize		= 1024
 )
-type RequestType uint8
+type requestType uint8
 const(
-	REQUEST_COMMAND		RequestType		=	iota
+	REQUEST_COMMAND		requestType		=	iota
 	GET_WORKSPACES
 	SUBSCRIBE
 	GET_OUTPUTS
@@ -30,25 +57,27 @@ const(
 	GET_BAR_CONFIG
 	GET_VERSION
 )
-type ResponseType uint8
+type responseType uint8
 const(
-	RESPONSE_COMMAND		ResponseType	=	iota
+	RESPONSE_COMMAND		responseType	=	iota
 	WORKSPACES
 	SUBSCRIPTION_RESULT
 	OUTPUTS
 	TREE
 	MARKS
-		BAR_CONFIG
+	BAR_CONFIG
 	VERSION
 )
-type EventType uint8
+type eventType uint8
 const(
-	WORKSPACE			EventType		=	iota
+	//Changed desktop
+	WORKSPACE			eventType		=	iota
+	//Added or removed a display
 	OUTPUT
 	MODE
 
 )
-func (ev EventType) String() string{
+func (ev eventType) String() string{
 	switch(ev){
 		case WORKSPACE:	return "workspace"
 		case OUTPUT:	return "output"
@@ -57,7 +86,7 @@ func (ev EventType) String() string{
 	panic("Unknown event type '"+ strconv.Itoa(int(ev)) + "'.")
 }
 //responseType returns the corresponding response type for a request type.
-func (req RequestType) responseType()ResponseType{
+func (req requestType) responseType()responseType{
 	switch req{
 		case REQUEST_COMMAND:
 			return RESPONSE_COMMAND
@@ -78,23 +107,35 @@ func (req RequestType) responseType()ResponseType{
 	}
 	panic("Unknown request type '" + strconv.Itoa(int(req)) + "' .")
 }
-//BorderType is a simple enum that saves memory.
-type BorderType uint8
+//borderType is a simple enum that saves memory.
+type borderType uint8
+
+//Border types for the nodes of TREE and other TreeNode based responses.
 const(
-	BORDER_NONE	BorderType		=	iota
+	//No border
+	BORDER_NONE	borderType		=	iota
+	//1 pixel border and window title
 	BORDER_NORMAL
+	//1 pixel border
 	BORDER_1PIXEL
 )
-//LayoutType is a simple enum that saves memory.
-type LayoutType uint8
+//layoutType is a simple enum that saves memory.
+type layoutType uint8
+
+//Layout types for tree nodes.
 const(
-	LAYOUT_SPLITH	LayoutType	=	iota
+	//Horizontal split
+	LAYOUT_SPLITH	layoutType	=	iota
+	//Vertical split
 	LAYOUT_SPLITV
+	//Tabbed layout
 	LAYOUT_TABBED
+	//Node is immune to desktop switches (is a dock).
 	LAYOUT_DOCKAREA
+	//Is an output (display)
 	LAYOUT_OUTPUT
 )
-func (Resp ResponseType) String() string{
+func (Resp responseType) String() string{
 	switch Resp{
 		case RESPONSE_COMMAND: return "RESPONSE_COMMAND"
 		case WORKSPACES: return "WORKSPACES"
@@ -107,7 +148,7 @@ func (Resp ResponseType) String() string{
 	}
 	panic("Response type '" + strconv.Itoa(int(Resp)) + "' is invalid.")
 }
-func (Resp RequestType) String() string{
+func (Resp requestType) String() string{
 	switch Resp{
 		case REQUEST_COMMAND: return "command"
 		case GET_WORKSPACES: return "get_workspaces"
@@ -120,7 +161,7 @@ func (Resp RequestType) String() string{
 	}
 	panic("Response type '" + strconv.Itoa(int(Resp)) + "' is invalid.")
 }
-func (Bor BorderType) String() string{
+func (Bor borderType) String() string{
 	switch Bor{
 		case BORDER_NONE: return "none"
 		case BORDER_NORMAL: return "normal"
@@ -128,7 +169,7 @@ func (Bor BorderType) String() string{
 	}
 	panic("Border type '" + strconv.Itoa(int(Bor)) + "' is invalid.")
 }
-func (Lay LayoutType) String() string{
+func (Lay layoutType) String() string{
 	switch Lay{
 		case LAYOUT_SPLITH: return "splith"
 		case LAYOUT_SPLITV: return "splitv"
@@ -183,8 +224,8 @@ type Output struct{
 type TreeNode struct{
 	Id uint32
 	Name string
-	Border BorderType
-	Layout LayoutType
+	Border borderType
+	Layout layoutType
 	Percent *float32
 	//Absolute relative to top left of desktop
 	Rect Rectangle
@@ -202,23 +243,28 @@ type i3Message struct{
 	PayloadLength	uint32
 	PayloadType		uint32
 }
+//Command response channels.
+var (
+	ChResponse_command		=		make(chan	CommandReply,1)
+	ChWorkspaces			=		make(chan	[]Workspace,1)
+	ChSubscription_result	=		make(chan	SubscribeReply,1)
+	ChOutputs				=		make(chan	[]Output,1)
+	ChTree					=		make(chan	TreeNode,1)
+	ChMarks					=		make(chan	Marks,1)
+	ChBar_config			=		make(chan	BarConfig,1)
+	ChVersion				=		make(chan	Version,1)
+)
 
-var ChResponse_command		=		make(chan	CommandReply,1)
-var ChWorkspaces			=		make(chan	[]Workspace,1)
-var ChSubscription_result	=		make(chan	SubscribeReply,1)
-var ChOutputs				=		make(chan	[]Output,1)
-var ChTree					=		make(chan	TreeNode,1)
-var ChMarks					=		make(chan	Marks,1)
-var ChBar_config			=		make(chan	BarConfig,1)
-var ChVersion				=		make(chan	Version,1)
-var ChWorkspace				=		make(chan	EventResponse,1)
-var	ChOutput				=		make(chan	EventResponse,1)
-var ChMode					=		make(chan	EventResponse,1)
-
+//Event channels.
+var (
+	ChWorkspace				=		make(chan	EventResponse,1)
+	ChOutput				=		make(chan	EventResponse,1)
+	ChMode					=		make(chan	EventResponse,1)
+)
 var i3MagicStringBytes	= []byte(i3MagicString)
 var i3MagicStringLength	= len(i3MagicStringBytes)
 var i3SocketConn net.Conn
-func makeBorder(borderType string) BorderType{
+func makeBorder(borderType string) borderType{
 	switch borderType{
 		case "none":	return BORDER_NONE
 		case "normal":	return BORDER_NORMAL
@@ -230,15 +276,15 @@ func makeBorder(borderType string) BorderType{
 func stripQuotes(inp string)string{
 	return strings.Trim(inp, "\"'")
 }
-func (b *BorderType) UnmarshalJSON (x []byte) error{
+func (b *borderType) UnmarshalJSON (x []byte) error{
 	*b= makeBorder(stripQuotes(string(x)))
 	return nil
 }
-func (l *LayoutType) UnmarshalJSON (x []byte) error{
+func (l *layoutType) UnmarshalJSON (x []byte) error{
 	*l=makeLayout(stripQuotes(string(x)))
 	return nil
 }
-func makeLayout(layoutType string) LayoutType{
+func makeLayout(layoutType string) layoutType{
 	switch layoutType{
 		case "splith":		return LAYOUT_SPLITH
 		case "splitv":		return LAYOUT_SPLITV
@@ -248,7 +294,7 @@ func makeLayout(layoutType string) LayoutType{
 	}
 	panic("Layout type '" + layoutType +"' is invalid.")
 }
-func packi3Message(payload string, messageType RequestType) []byte{
+func packi3Message(payload string, messageType requestType) []byte{
 	/*
 	By example:
 
@@ -344,7 +390,7 @@ func listen(){
 				break
 			}
 			//Unload the payload into the appropriate channel.
-			payloadType := ResponseType(payloadTypeInt)
+			payloadType := responseType(payloadTypeInt)
 			jsonString:=messageParts[magicEnd+8:magicEnd+8+payloadLength]
 			getPayloadJSON := func()interface{}{
 				var out interface{}
@@ -355,7 +401,7 @@ func listen(){
 			}
 			//Spec says that the highest value bit is set to one if it is an event.
 			if (messageParts[magicEnd+7]>>7 == byte(1)){
-				eventType:=EventType(payloadType)
+				eventType:=eventType(payloadType)
 				payloadJSON:= getPayloadJSON()
 				eventString := EventResponse(payloadJSON.(map[string]interface{})["change"].(string))
 				switch eventType{
@@ -418,8 +464,8 @@ func shell(fun, arg string) (string, error){
 	out, err :=cmd.Output()
 	return string(out), err
 }
-//Send sends a message to i3 with given payload and RequestType.
-func Send(payload string, msgType RequestType){
+//Send sends a message to i3 with given payload and requestType.
+func Send(payload string, msgType requestType){
 	_, err :=	i3SocketConn.Write(packi3Message(payload, msgType))
 	if err != nil{
 		panic("Error writing to i3 socket!")

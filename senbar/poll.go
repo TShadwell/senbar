@@ -2,7 +2,8 @@ package main
 import "time"
 import "sort"
 type poller interface{
-	poll() string
+	poll()
+	//Although this is a function, interval really should be constant
 	interval() int
 	String() string
 }
@@ -20,7 +21,7 @@ type runningPollMachine struct{
 	highestPollTime int
 }
 
-func (pl *pollMachine) add(p *poller, priority int){
+func (pl *pollMachine) add(p *poller, priority int){ 
 	if pl.pollers[priority] == nil{
 		(*pl).pollers[priority] = p
 		(*pl).priorityKeys = append((*pl).priorityKeys, priority)
