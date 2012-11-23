@@ -500,7 +500,7 @@ func GetTree() TreeNode{
 	return <- ChTree
 }
 //Subscribe -  to a list of i3 events, returns success as bool.
-func Subscribe(events []string) bool{
+func Subscribe(events ...string) bool{
 	val, err:=json.Marshal(events)
 	if err != nil{
 		panic("Marshalling error!")

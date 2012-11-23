@@ -7,6 +7,15 @@ import(
 	"strconv"
 	"math"
 )
+const(
+	ICON_PATH = "/home/thomas/.i3/icons/"
+)
+func Icon(name string, path ...string)string{
+	if len(path)>0{
+		return "^i("+path[0]+name+")"
+	}
+	return "^i("+ICON_PATH+name+")"
+}
 func contains(haystack []int, needle int) bool{
 	for _, hay := range haystack{
 		if hay == needle{
