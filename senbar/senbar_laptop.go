@@ -12,13 +12,14 @@ import(
 
 )
 func volumeIcon(out string) string{
-			out += " ^fg(" + SOUND_FG + ")"
-			if currentState.mute{
-				out += dzen.Icon("spkr_02.xbm");
-			}else{
-				out += dzen.Icon("spkr_01.xbm")
-			}
-			out += " " + strconv.Itoa(int(currentState.vol)) + "^fg()"
+	out += "  ^fg(" + SOUND_FG + ")"
+	if currentState.mute{
+		out += dzen.Icon("spkr_02.xbm")
+	}else{
+		out += dzen.Icon("spkr_01.xbm")
+	}
+	out += " " + strconv.Itoa(int(currentState.vol)) + "^fg()"
+	return out
 }
 func laptop(){
 	voldn:=exec.Command(
