@@ -2,8 +2,6 @@ package main
 import(
 	"github.com/TShadwell/senbar/i3"
 	"github.com/TShadwell/senbar/dzen"
-	"github.com/TShadwell/senbar/kernelevents"
-	"github.com/TShadwell/senbar/kernelevents/event"
 	//"github.com/TShadwell/senbar/alsa"
 
 	"io"
@@ -67,20 +65,6 @@ func shell(fun string, arg ...string) (string, error){
 	cmd := exec.Command(fun, arg...)
 	out, err := cmd.Output()
 	return string(out), err
-}
-func getVolume() uint8{
-	volRaw, _ := shell("amixer", "-c", "0", "get", "Master")
-	for _, x := range strings.Split(volRaw, "\n"){
-		if x[2:6] == "Mono"{
-			out, _ :=strconv.Atoi(strings.SplitN(
-				strings.SplitN(x,"%", 2)[0],
-				"[",
-				2,
-			)[1])
-			return uint8(out+1)
-		}
-	}
-	panic("Unable to get Volume")
 }
 func muteSound(){
 	exec.Command("amixer", "set", "\"Master\"", "mute").Run()
@@ -175,13 +159,7 @@ func (state *i3State) redraw(){
 			}
 
 			//Bar icons
-			out += " ^fg(" + SOUND_FG + ")"
-			if currentState.mute{
-				out += dzen.Icon("spkr_02.xbm");
-			}else{
-				out += dzen.Icon("spkr_01.xbm")
-			}
-			out += " " + strconv.Itoa(int(currentState.vol)) + "^fg()"
+			out=volumeIcon(out)
 
 
 			out+=dzen.AlignRight(fancyTime(currentState.now), -1, BARQUALIFIED_FONTNAME)
@@ -256,49 +234,7 @@ func main(){
 		}
 	})()
 	//Process various keypress events
-	voldn:=exec.Command(
-		"amixer",
-		"-c",
-		"0",
-		"sset",
-		"Master",
-		"Playback",
-		"1%-")
-
-	volup:=exec.Command(
-		"amixer",
-		"-c",
-		"0",
-		"sset",
-		"Master",
-		"Playback",
-		"1%+")
-
-
-	err := kernelevents.Get("/dev/input/event0", func(thisEvent kernelevents.Input_event){
-			flip:= true
-			switch thisEvent.Code{
-				case	event.KEY_VOLUMEDOWN:
-					currentState.vol=uint8(getVolume()-1)
-					voldn.Run()
-				case	event.KEY_VOLUMEUP:
-					currentState.vol=uint8(getVolume()-1)
-					volup.Run()
-				case	event.KEY_MUTE:
-					if thisEvent.Value == 1{
-						currentState.mute = !currentState.mute
-					}
-				default: flip = false
-			}
-			//fmt.Println(thisEvent)
-			if flip{
-				currentState.redraw()
-			}
-
-	})
-	if err != nil{
-		panic(err)
-	}
+	laptop()
 	go (func(){
 		for{
 			<-i3.ChWorkspace
