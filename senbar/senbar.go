@@ -2,6 +2,10 @@ package main
 import(
 	"github.com/TShadwell/senbar/i3"
 	"github.com/TShadwell/senbar/dzen"
+	"github.com/TShadwell/senbar/kernelevents"
+	"github.com/TShadwell/senbar/kernelevents/event"
+	//"github.com/TShadwell/senbar/alsa"
+
 	"io"
 	"os/exec"
 	"os"
@@ -21,6 +25,7 @@ const(
 	SELECTED_RECTANGLE_COLOUR="#FFFFFF"
 	VISIBLE_FG = BARBG
 	VISIBLE_BG = BARFG
+	SOUND_FG=TIMECOLOUR
 	DESKNUM_PADDING=3
 )
 type i3Bar struct{
@@ -33,6 +38,8 @@ type i3State struct{
 	Workspaces map[string][]i3.Workspace
 	Bars []i3Bar
 	now time.Time
+	vol uint8
+	mute bool
 }
 var currentState i3State
 var polling bool
@@ -56,7 +63,28 @@ func (bar *i3Bar) spawn(){
 	}
 	bar.process.Start()
 }
-var update bool = false
+func shell(fun string, arg ...string) (string, error){
+	cmd := exec.Command(fun, arg...)
+	out, err := cmd.Output()
+	return string(out), err
+}
+func getVolume() uint8{
+	volRaw, _ := shell("amixer", "-c", "0", "get", "Master")
+	for _, x := range strings.Split(volRaw, "\n"){
+		if x[2:6] == "Mono"{
+			out, _ :=strconv.Atoi(strings.SplitN(
+				strings.SplitN(x,"%", 2)[0],
+				"[",
+				2,
+			)[1])
+			return uint8(out+1)
+		}
+	}
+	panic("Unable to get Volume")
+}
+func muteSound(){
+	exec.Command("amixer", "set", "\"Master\"", "mute").Run()
+}
 func remove (bar []i3Bar, pos uint){
 	bar[pos], bar = bar[len(bar)-1], bar[:len(bar)-1]
 }
@@ -145,6 +173,17 @@ func (state *i3State) redraw(){
 				}
 				out+="("+strconv.Itoa(SELECTED_RECTANGLE_SIZE)+"x"+ strconv.Itoa(SELECTED_RECTANGLE_SIZE) + ")^p()^fg()^bg()"
 			}
+
+			//Bar icons
+			out += " ^fg(" + SOUND_FG + ")"
+			if currentState.mute{
+				out += dzen.Icon("spkr_02.xbm");
+			}else{
+				out += dzen.Icon("spkr_01.xbm")
+			}
+			out += " " + strconv.Itoa(int(currentState.vol)) + "^fg()"
+
+
 			out+=dzen.AlignRight(fancyTime(currentState.now), -1, BARQUALIFIED_FONTNAME)
 			bar.in.Write([]byte(out+"\n"))
 		}else{
@@ -191,10 +230,10 @@ func main(){
 	//Get initial outputs
 
 	//Subscribe to various events
-	i3.Subscribe([]string{
+	i3.Subscribe(
 		"workspace",
 		"output",
-	})
+	)
 
 	//Set initial state
 	bars, outputs := makeBars()
@@ -202,7 +241,9 @@ func main(){
 		outputs,
 		i3.WorkspacesPerDisplay(),
 		bars,
-		time.Now()}
+		time.Now(),
+		getVolume(),
+		false}
 
 	//Start threads
 	go (func(){
@@ -214,6 +255,50 @@ func main(){
 			time.Sleep(time.Duration(int64(60)-int64(now.Second()))*time.Second)
 		}
 	})()
+	//Process various keypress events
+	voldn:=exec.Command(
+		"amixer",
+		"-c",
+		"0",
+		"sset",
+		"Master",
+		"Playback",
+		"1%-")
+
+	volup:=exec.Command(
+		"amixer",
+		"-c",
+		"0",
+		"sset",
+		"Master",
+		"Playback",
+		"1%+")
+
+
+	err := kernelevents.Get("/dev/input/event0", func(thisEvent kernelevents.Input_event){
+			flip:= true
+			switch thisEvent.Code{
+				case	event.KEY_VOLUMEDOWN:
+					currentState.vol=uint8(getVolume()-1)
+					voldn.Run()
+				case	event.KEY_VOLUMEUP:
+					currentState.vol=uint8(getVolume()-1)
+					volup.Run()
+				case	event.KEY_MUTE:
+					if thisEvent.Value == 1{
+						currentState.mute = !currentState.mute
+					}
+				default: flip = false
+			}
+			//fmt.Println(thisEvent)
+			if flip{
+				currentState.redraw()
+			}
+
+	})
+	if err != nil{
+		panic(err)
+	}
 	go (func(){
 		for{
 			<-i3.ChWorkspace
@@ -223,6 +308,8 @@ func main(){
 	})()
 	for{
 		<-i3.ChOutput
+		//Fix the desktop bgs
+		exec.Command("nitrogen", "--restore").Start()
 		restart:=ignoreAll(i3.ChOutput)
 		//Record all bar processes
 		newBars, outputs := makeBars()
@@ -241,6 +328,4 @@ func main(){
 		restart()
 
 	}
-	Pollers.start()
-
 }
