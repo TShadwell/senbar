@@ -10,6 +10,9 @@ import(
 const(
 	ICON_PATH = "/home/thomas/.i3/icons/"
 )
+//Icon takes the icon name with extension, and an optional pth string and generates the dzen code to show that icon.
+//
+//If path is not provided, it defaults to ICON_PATH
 func Icon(name string, path ...string)string{
 	if len(path)>0{
 		return "^i("+path[0]+name+")"

@@ -1,3 +1,5 @@
+
+//package kernel events provides a method of listening for kernel level events.
 package kernelevents
 import "C"
 
@@ -15,8 +17,7 @@ type Input_event struct{
 	Code	C.ushort
 	Value	C.uint
 }
-//GetKernelEvents returns a channel down which unpacked event data is sent,
-// the events are read from the given path (/dev/input/eventX).
+//Get takes a path to a kernel event file and calls a function with the event when one happens.
 func Get(path string, process func(Input_event)) (error){
 	file, err := os.Open(path)
 	if err != nil{
