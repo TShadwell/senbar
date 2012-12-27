@@ -63,7 +63,7 @@ func laptop() {
 
 	})
 	if err != nil {
-		i3.Nag("Senbar unable to access /dev/event/*, cannot adjust volume :(")
+		i3.Nag("Senbar unable to access /dev/input/*, cannot adjust volume :(")
 	}
 }
 func getVolume() uint8 {
