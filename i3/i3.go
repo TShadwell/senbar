@@ -10,10 +10,10 @@
 //
 //Recieving events:
 //
-//	ok := i3.Subscribe([]string{
+//	ok := i3.Subscribe(
 //		"workspace",
-//		"output"
-//	})
+//		"output",
+//	)
 //
 //	if !ok{
 //		panic("Unable to subscribe to events!")
