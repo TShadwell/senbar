@@ -517,15 +517,15 @@ func listen() {
 }
 
 //Function Nag calls i3-nagbar with the specified arguments.
-func Nag(label string, labelAction ...[2]string) (error){
+func Nag(label string, labelAction ...[2]string) error {
 	var arg []string
-	if len(labelAction) >0{
+	if len(labelAction) > 0 {
 		arg = []string{
 			"-m",
 			"'" + label + "'",
 			"-b",
-			"'"+labelAction[0][0]+ "'",
-			"'"+labelAction[0][1]+"'",
+			"'" + labelAction[0][0] + "'",
+			"'" + labelAction[0][1] + "'",
 		}
 	} else {
 		arg = []string{
@@ -613,7 +613,7 @@ func WorkspacesPerDisplay() map[string][]Workspace {
 }
 
 //Fail calls Nag(s) and panic(s).
-func Fail(s string){
+func Fail(s string) {
 	Nag(s)
 	panic(s)
 }
