@@ -4,6 +4,7 @@ package main
 
 import (
 	"github.com/TShadwell/senbar/dzen"
+	"github.com/TShadwell/senbar/i3"
 	"github.com/TShadwell/senbar/kernelevents"
 	"github.com/TShadwell/senbar/kernelevents/event"
 	"os/exec"
@@ -62,7 +63,7 @@ func laptop() {
 
 	})
 	if err != nil {
-		panic(err)
+		i3.Nag("Senbar unable to access /dev/event/*, cannot adjust volume :(")
 	}
 }
 func getVolume() uint8 {
@@ -77,5 +78,6 @@ func getVolume() uint8 {
 			return uint8(out + 1)
 		}
 	}
+	i3.Fail("Unable to get Volume")
 	panic("Unable to get Volume")
 }

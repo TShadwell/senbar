@@ -515,6 +515,27 @@ func listen() {
 		}
 	}
 }
+
+//Function Nag calls i3-nagbar with the specified arguments.
+func Nag(label string, labelAction ...[2]string) (error){
+	var arg []string
+	if len(labelAction) >0{
+		arg = []string{
+			"-m",
+			"'" + label + "'",
+			"-b",
+			"'"+labelAction[0][0]+ "'",
+			"'"+labelAction[0][1]+"'",
+		}
+	} else {
+		arg = []string{
+			"-m",
+			"'" + label + "'",
+		}
+	}
+	return exec.Command("i3-nagbar", arg...).Run()
+}
+
 func shell(fun, arg string) (string, error) {
 	cmd := exec.Command(fun, arg)
 	out, err := cmd.Output()
@@ -590,15 +611,22 @@ func WorkspacesPerDisplay() map[string][]Workspace {
 	}
 	return cWorkspaces
 }
+
+//Fail calls Nag(s) and panic(s).
+func Fail(s string){
+	Nag(s)
+	panic(s)
+}
+
 func init() {
 	i3SockLoc, err := shell("i3", "--get-socketpath")
 	i3SockLoc = strings.TrimSpace(i3SockLoc)
 	if err != nil {
-		panic("Unable to get socketpath!")
+		Fail("Unable to get socketpath!")
 	}
 	conn, erro := net.Dial("unix", i3SockLoc)
 	if erro != nil {
-		panic("Unable to connect to i3 socket!")
+		Fail("Unable to connect to i3 socket!")
 	}
 	i3SocketConn = conn
 
