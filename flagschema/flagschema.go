@@ -85,11 +85,10 @@ type flagSpec struct {
 	imperitive bool
 }
 
-type Imperitive interface{
-	isSet()bool
+type Imperitive interface {
+	isSet() bool
 	flag.Value
 }
-
 
 func getFlag(field reflect.StructField) (ths flagSpec) {
 	ftlen := len(field.Tag)
@@ -97,7 +96,7 @@ func getFlag(field reflect.StructField) (ths flagSpec) {
 		if ftlen > 1 && string(field.Tag[ftlen-2]) != "\\" {
 			field.Tag = field.Tag[:ftlen-1]
 			ths.imperitive = true
-		} else if ftlen > 2{
+		} else if ftlen > 2 {
 			field.Tag = reflect.StructTag(string(field.Tag[:len(field.Tag)-2]) + "!")
 		} else {
 			ths.imperitive = true
@@ -151,7 +150,7 @@ type Flags struct {
 
 //Function EnableHelp causes execution to stop if -h or -help flag is present
 //and to display a description along with help.
-func (f Flags) EnableHelp(description string) Flags{
+func (f Flags) EnableHelp(description string) Flags {
 	f.Description = description
 	f.helpMessage = true
 	return f
@@ -183,7 +182,7 @@ func (f Flags) ParseArgs() Flags {
 		f.FlagSet.BoolVar(&help, "h", false, "Shorthand for help")
 	}
 	f.FlagSet.Parse(os.Args[1:])
-	if f.helpMessage && help{
+	if f.helpMessage && help {
 		fmt.Println(f.Description)
 		f.PrintDefaults()
 		os.Exit(0)
@@ -191,16 +190,16 @@ func (f Flags) ParseArgs() Flags {
 
 	if f.Imperitives != nil {
 		for _, v := range f.Imperitives {
-			g:= f.FlagSet.Lookup(v)
+			g := f.FlagSet.Lookup(v)
 			imp, isImperitive := g.Value.(Imperitive)
-			switch hvalue := g.Value.String();{
-				case isImperitive:
-					if imp.isSet(){
-						break
-					}
-					fallthrough
-				case g == nil, hvalue == "0", hvalue == "":
-					f.AbortWithString("The argument '" + v + "' must be present and non-zero.")
+			switch hvalue := g.Value.String(); {
+			case isImperitive:
+				if imp.isSet() {
+					break
+				}
+				fallthrough
+			case g == nil, hvalue == "0", hvalue == "":
+				f.AbortWithString("The argument '" + v + "' must be present and non-zero.")
 			}
 		}
 	}
