@@ -26,7 +26,41 @@ The problems with "" and "0" occur with imperitive values because package flag p
 no way of checking if a value has been set. If the type impliments the Imperitive interface,
 we can avoid these problems by callling isSet(), which should return true if Set() has been
 called on the object.
+Contrived example:
+	import "fmt"
+	import "github.com/TShadwell/senbar/flagschema"
 
+	var flags struct{
+		Name string	"Your name!"
+		Abort bool	"Aborts without doing anything"
+		Colour string "Your favorite colour;green;favcolour,col,color,colour"
+	}
+
+	func main(){
+		flagschema.Set("namesender", &flags).EnableHelp("Tells you your name!").ParseArgs()
+
+		if flags.Abort{
+			return
+		}
+
+		fmt.Println("Hey, " + flags.Name + " I think " + flags.Colour + " is a great colour too!")
+	}
+Result with no arguments:
+	The argument 'name' must be present and non-zero. 
+	Usage:
+	  -abort=false: Aborts without doing anything
+	  -col="green": Shorthand for favcolour
+	  -color="green": Shorthand for favcolour
+	  -colour="green": Shorthand for favcolour
+	  -favcolour="green": Your favorite colour
+	  -h=false: Shorthand for help
+	  -help=false: Display this message.
+	  -name="": Required - Your name
+	exit status 1
+With -name thomas
+	Hey, thomas I think green is a great colour too!
+With -name thomas -colour yellow
+	Hey, thomas I think yellow is a great colour too!
 */
 package flagschema
 
@@ -173,7 +207,7 @@ func (f Flags) ParseArgs() Flags {
 	return f
 }
 
-//Function Set prepares the  flags for capture, and returns a *flag.FlagSet.
+//Function Set prepares the  flags for capture, and returns a Flags.
 func Set(Name string, flags interface{}) (fS Flags) {
 	fS.FlagSet = flag.NewFlagSet(Name, flag.ExitOnError)
 	v := reflect.ValueOf(flags)
