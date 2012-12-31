@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/TShadwell/senbar/dzen"
 	"github.com/TShadwell/senbar/i3"
-	//"github.com/TShadwell/senbar/alsa"
+	"github.com/TShadwell/senbar/flagschema"
 
 	"fmt"
 	"io"
@@ -188,8 +188,14 @@ func ignoreAll(x chan i3.EventResponse) (restart func()) {
 	})
 	return
 }
+
+var flags struct{
+	Server bool	"Run in server mode, senbar-remote can be used to control senbar operation"
+	Sound bool	"Enable sound control. Requires ALSA and /dev/event/* to be readable"
+}
+
 func main() {
-	//Get initial outputs
+	flagschema.Set("senbar", &flags).EnableHelp("Senbar is a system bar for i3.").ParseArgs()
 
 	//Subscribe to various events
 	i3.Subscribe(

@@ -76,10 +76,10 @@ func getFlag(field reflect.StructField) (ths flagSpec) {
 		ths.names = strings.Split(parts[2], ",")
 		fallthrough
 	case 2:
-		ths.usage = parts[1]
+		ths.deflt = parts[1]
 		fallthrough
 	case 1:
-		ths.deflt = parts[0]
+		ths.usage = parts[0]
 		fallthrough
 	case 0:
 		ths.typ = field.Type
@@ -108,6 +108,19 @@ type Flags struct {
 	//A slice of names of arguments
 	//that must be present.
 	Imperitives []string
+	//If -h, -help should send signal 0 and
+	//display help
+	helpMessage bool
+	//Printed with help message
+	Description string
+}
+
+//Function EnableHelp causes execution to stop if -h or -help flag is present
+//and to display a description along with help.
+func (f Flags) EnableHelp(description string) Flags{
+	f.Description = description
+	f.helpMessage = true
+	return f
 }
 
 //Function AbortWithString causes os.Exit to be called with signal 1
@@ -130,7 +143,17 @@ func (f Flags) ParseArgs() Flags {
 	if f.Error != nil {
 		panic(f.Error)
 	}
+	var help bool
+	if f.helpMessage {
+		f.FlagSet.BoolVar(&help, "help", false, "Display this message.")
+		f.FlagSet.BoolVar(&help, "h", false, "Shorthand for help")
+	}
 	f.FlagSet.Parse(os.Args[1:])
+	if f.helpMessage && help{
+		fmt.Println(f.Description)
+		f.PrintDefaults()
+		os.Exit(0)
+	}
 
 	if f.Imperitives != nil {
 		for _, v := range f.Imperitives {
