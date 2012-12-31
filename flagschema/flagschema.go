@@ -28,19 +28,21 @@ we can avoid these problems by callling isSet(), which should return true if Set
 called on the object.
 
 Contrived example:
-	import "fmt"
-	import "github.com/TShadwell/senbar/flagschema"
+	import (
+		"fmt"
+		"github.com/TShadwell/senbar/flagschema"
+	)
 
-	var flags struct{
-		Name string	"Your name!"
-		Abort bool	"Aborts without doing anything"
+	var flags struct {
+		Name   string "Your name!"
+		Abort  bool   "Aborts without doing anything"
 		Colour string "Your favorite colour;green;favcolour,col,color,colour"
 	}
 
-	func main(){
+	func main() {
 		flagschema.Set("namesender", &flags).EnableHelp("Tells you your name!").ParseArgs()
 
-		if flags.Abort{
+		if flags.Abort {
 			return
 		}
 
