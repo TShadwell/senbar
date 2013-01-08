@@ -21,14 +21,14 @@
 //
 //	go (func(){
 //		for{
-//			<-i3.ChWorkspace
+//			<-i3.chWorkspace
 //			fmt.Println("Workspace changed.")
 //		}
 //	})()
 //
 //	go(func(){
 //		for{
-//			<-i3.ChOutput
+//			<-i3.chOutput
 //			fmt.Println("Output changed.")
 //		}
 //	})()
@@ -40,6 +40,7 @@ import (
 	"encoding/json"
 	"net"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -255,6 +256,10 @@ type Workspace struct {
 	Rect Rectangle
 }
 
+type Workspaces []Workspace
+
+var listening bool
+
 //Output represents the attributes of one output, or display screen in i3.
 type Output struct {
 	Name string
@@ -263,6 +268,8 @@ type Output struct {
 	CurrentWorkspace *string
 	Rect             Rectangle
 }
+
+type Outputs []Output
 
 //TreeNode is the self-similar form in which the window tree is provided.
 type TreeNode struct {
@@ -292,22 +299,50 @@ type i3Message struct {
 
 //Command response channels.
 var (
-	ChResponse_command    = make(chan CommandReply, 1)
-	ChWorkspaces          = make(chan []Workspace, 1)
-	ChSubscription_result = make(chan SubscribeReply, 1)
-	ChOutputs             = make(chan []Output, 1)
-	ChTree                = make(chan TreeNode, 1)
-	ChMarks               = make(chan Marks, 1)
-	ChBar_config          = make(chan BarConfig, 1)
-	ChVersion             = make(chan Version, 1)
+	chResponse_command    chan CommandReply
+	chWorkspaces          chan Workspaces
+	chSubscription_result chan SubscribeReply
+	chOutputs             chan Outputs
+	chTree                chan TreeNode
+	chMarks               chan Marks
+	chBar_config          chan BarConfig
+	chVersion             chan Version
 )
+
+
+
+
+chResponse_command    chan CommandReply
+chWorkspaces          chan Workspaces
+chSubscription_result chan SubscribeReply
+chOutputs             chan Outputs
+chTree                chan TreeNode
+chMarks               chan Marks
+chBar_config          chan BarConfig
+chVersion             chan Version
 
 //Event channels.
 var (
-	ChWorkspace = make(chan EventResponse, 1)
-	ChOutput    = make(chan EventResponse, 1)
-	ChMode      = make(chan EventResponse, 1)
+	chWorkspace chan EventResponse
+	chOutput    chan EventResponse
+	chMode      chan EventResponse
 )
+
+var chErrors chan error
+
+/*
+Prevents the i3 library from panicing on irrecoverable errors, returning a channel
+though which the errors are sent instead.
+
+If an error happens once, it may happen again, locking this channel!
+*/
+func GetErrors() *chan error{
+	if chErrors == nil{
+		chErrors = make(chan error)
+	}
+	return &chErrors
+}
+
 var i3MagicStringBytes = []byte(i3MagicString)
 var i3MagicStringLength = len(i3MagicStringBytes)
 var i3SocketConn net.Conn
@@ -396,16 +431,107 @@ func packi3Message(payload string, messageType requestType) []byte {
 		nPayload)
 	return msg
 }
+
+type i3err uint8
+const (
+	READ_ERROR i3err = iota
+	UNPACK_ERROR
+	JSON_PROCESS_ERROR
+	UNKNOWN_RESPONSE_TYPE
+)
+
+var errMap = map[i3err]string{
+	READ_ERROR:"Error reading from socket!",
+	UNPACK_ERROR:"Error unpacking message!",
+	JSON_PROCESS_ERROR:"Error reading JSON!",
+	UNKNOWN_RESPONSE_TYPE:"Unknown response type!",
+}
+
+type i3ErrEffect uint8
+const (
+	//Causes this package to stop listening to i3
+	STOP i3ErrEffect = iota
+
+	//Causes the package to abandon the current read.
+	ABANDON
+
+	//Causes the package to continue and send nil (usually)
+	//down channel
+	CONTINUE
+
+)
+
+
+var ErrorEffect = map[i3err]i3ErrEffect{
+	READ_ERROR:STOP,
+	UNPACK_ERROR:ABANDON,
+	//Sends nil down channels
+	JSON_PROCESS_ERROR:CONTINUE,
+	UNKNOWN_RESPONSE_TYPE:ABANDON,
+}
+
+//Returns the corresponding effect of an error
+func (i i3err) Effect() i3ErrEffect{
+	return ErrorEffect[i]
+}
+
+func (i i3err) String()string{
+	return errMap[i]
+}
+
+func (i i3err) Error() string{
+	return i.String()
+}
+
+func IsListening() bool{
+	return listening
+}
+
+var stopListening bool
+
+//If this package is listening, it stops listening,
+//else it returns false.
+func StopListening()bool{
+	if listening{
+		stopListening = true
+		return true
+	}
+	return false
+}
+
+//If this package is not listening it starts listening.
+//else it returns false.
+func StartListening() bool{
+	if !listening{
+		listen()
+		return true
+	}
+	return false
+}
+
 func listen() {
+	listening = true
+	defer func(){
+		listening = false
+	}()
 	buffer := make(
 		[]byte,
 		chunkSize,
 	)
 	messageParts := make([]byte, 0)
 	for {
+		if stopListening{
+			stopListening = false
+			runtime.Goexit()
+		}
 		n, err := i3SocketConn.Read(buffer)
 		if err != nil {
-			panic("Error reading from socket!")
+			if chErrors == nil{
+				panic(READ_ERROR)
+			} else {
+				chErrors <- READ_ERROR
+				break
+			}
 		}
 		messageParts = append(messageParts, buffer[:n]...)
 		var start int
@@ -433,7 +559,12 @@ func listen() {
 			buf := bytes.NewBuffer(messageParts[magicEnd : magicEnd+8])
 			errbin := binary.Read(buf, binary.LittleEndian, &msg)
 			if errbin != nil {
-				panic("Error whilst trying to unpack message!")
+				if chErrors == nil{
+					panic(UNPACK_ERROR)
+				} else {
+					chErrors <- UNPACK_ERROR
+					continue
+				}
 			}
 			payloadLength := uint64(msg.PayloadLength)
 			payloadTypeInt := uint64(msg.PayloadType)
@@ -445,13 +576,18 @@ func listen() {
 				//Continue to read until we have all of it.
 				break
 			}
+
 			//Unload the payload into the appropriate channel.
 			payloadType := responseType(payloadTypeInt)
 			jsonString := messageParts[magicEnd+8 : magicEnd+8+payloadLength]
 			getPayloadJSON := func() interface{} {
 				var out interface{}
 				if json.Unmarshal(jsonString, &out) != nil {
-					panic("Error processing JSON!\n" + string(jsonString))
+					if chErrors == nil{
+						panic(JSON_PROCESS_ERROR)
+					} else {
+						chErrors <- JSON_PROCESS_ERROR
+					}
 				}
 				return out
 			}
@@ -464,50 +600,69 @@ func listen() {
 				case WORKSPACE:
 					//A horrible hack to prevent some horrible race conditions
 					//These need to be dealt with in time
-					if eventString != "init" && eventString != "empty" {
-						ChWorkspace <- eventString
+					if eventString != "init" && eventString != "empty" && chWorkspace != nil {
+						chWorkspace <- eventString
 					}
 				case OUTPUT:
-					ChOutput <- eventString
+					if chOutput != nil{
+						chOutput <- eventString
+					}
 				case MODE:
-					ChMode <- eventString
+					if chMode != nil{
+						chMode <- eventString
+					}
 				default:
 					panic("Unknown event type '" + strconv.Itoa(int(eventType)) + "'.")
 				}
 			} else {
 				switch payloadType {
 				case RESPONSE_COMMAND:
-					payloadJSON := getPayloadJSON()
-					ReplyObject := payloadJSON.(map[string]interface{})
-					ChResponse_command <- CommandReply{
-						ReplyObject["success"].(bool)}
+					if chResponse_command != nil{
+						payloadJSON := getPayloadJSON()
+						ReplyObject := payloadJSON.(map[string]interface{})
+						chResponse_command <- CommandReply{
+							ReplyObject["success"].(bool),
+						}
+
+					}
 				case WORKSPACES:
-					op := make([]Workspace, 0)
-					json.Unmarshal(jsonString, &op)
-					ChWorkspaces <- op
+					if chWorkspaces != nil{
+						op := make(Workspaces, 0)
+						json.Unmarshal(jsonString, &op)
+						chWorkspaces <- op
+					}
 				case SUBSCRIPTION_RESULT:
-					payloadJSON := getPayloadJSON()
-					ReplyObject := payloadJSON.(map[string]interface{})
-					ChSubscription_result <- SubscribeReply(ReplyObject["success"].(bool))
+					if chSubscription_result != nil{
+						payloadJSON := getPayloadJSON()
+						ReplyObject := payloadJSON.(map[string]interface{})
+						chSubscription_result <- SubscribeReply(ReplyObject["success"].(bool))
+					}
 				case OUTPUTS:
-					cOutputs := make([]Output, 0)
-					json.Unmarshal(jsonString, &cOutputs)
-					ChOutputs <- cOutputs
+					if chOutputs != nil{
+						cOutputs := make(Outputs, 0)
+						json.Unmarshal(jsonString, &cOutputs)
+						chOutputs <- cOutputs
+					}
 				case TREE:
-					var root TreeNode
-					json.Unmarshal(jsonString, &root)
-					ChTree <- root
+					if chTree != nil{
+						var root TreeNode
+						json.Unmarshal(jsonString, &root)
+						chTree <- root
+					}
 				case MARKS:
-					//payloadJSON:= getPayloadJSON()
 				case BAR_CONFIG:
-					//payloadJSON:= getPayloadJSON()
-					ChBar_config <- BarConfig{}
 				case VERSION:
-					var version Version
-					json.Unmarshal(jsonString, &version)
-					ChVersion <- version
+					if chVersion != nil{
+						var version Version
+						json.Unmarshal(jsonString, &version)
+						chVersion <- version
+					}
 				default:
-					panic("Unknown response type!")
+					if chErrors != nil{
+						chErrors <- UNKNOWN_RESPONSE_TYPE
+					} else {
+						panic("Unknown response type!")
+					}
 				}
 			}
 			//Remove the channeled information
@@ -551,15 +706,15 @@ func Send(payload string, msgType requestType) {
 }
 
 //GetOutputs sends the GET_OUTPUTS signal, waits for reply
-func GetOutputs() []Output {
+func GetOutputs() Outputs {
 	Send("", GET_OUTPUTS)
-	return <-ChOutputs
+	return <-chOutputs
 }
 
 //GetActive outputs sends the GET_OUTPUTS signal, filters out outputs not being used.
-func GetActiveOutputs() []Output {
+func GetActiveOutputs() Outputs {
 	outputs := GetOutputs()
-	fOutputs := make([]Output, 0)
+	fOutputs := make(Outputs, 0)
 	for _, output := range outputs {
 		if output.Active {
 			fOutputs = append(fOutputs, output)
@@ -569,17 +724,17 @@ func GetActiveOutputs() []Output {
 }
 
 //GetWorkspaces returns an array of workspaces (desktops).
-func GetWorkspaces() []Workspace {
+func GetWorkspaces() Workspaces {
 	Send("", GET_WORKSPACES)
 
-	return <-ChWorkspaces
+	return <-chWorkspaces
 }
 
 //GetTree returns a tree of windows.
 func GetTree() TreeNode {
 	Send("", GET_TREE)
 
-	return <-ChTree
+	return <-chTree
 }
 
 //Subscribe -  to a list of i3 events, returns success as bool.
@@ -591,19 +746,19 @@ func Subscribe(events ...string) bool {
 	Send(
 		string(val),
 		SUBSCRIBE)
-	return bool(<-ChSubscription_result)
+	return bool(<-chSubscription_result)
 }
 
 //WorkspacesPerDisplay sorts workspaces by display; useful for status bars.
-func WorkspacesPerDisplay() map[string][]Workspace {
+func WorkspacesPerDisplay() map[string]Workspaces {
 	Send("", GET_WORKSPACES)
-	workspaces := <-ChWorkspaces
-	cWorkspaces := make(map[string][]Workspace)
+	workspaces := <-chWorkspaces
+	cWorkspaces := make(map[string]Workspaces)
 
 	for _, workspace := range workspaces {
 		concernedOutput, ok := cWorkspaces[workspace.Output]
 		if ok == false {
-			cWorkspaces[workspace.Output] = []Workspace{
+			cWorkspaces[workspace.Output] = Workspaces{
 				workspace}
 		} else {
 			cWorkspaces[workspace.Output] = append(concernedOutput, workspace)
