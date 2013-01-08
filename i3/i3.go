@@ -312,21 +312,19 @@ var (
 
 
 
-//chResponse_command    chan CommandReply
 func ChResponse_command() *chan CommandReply{
 	if chResponse_command == nil{
 		chResponse_command = make(chan CommandReply)
 	}
 	return &chResponse_command
 }
-//chWorkspaces          chan Workspaces
+
 func ChWorkspaces() *chan Workspaces{
 	if chWorkspaces == nil {
 		chWorkspaces = make(chan Workspaces)
 	}
 	return &chWorkspaces
 }
-//chSubscription_result chan SubscribeReply
 func ChSubscription_result() *chan SubscribeReply{
 	if chSubscription_result == nil{
 		chSubscription_result = make(chan SubscribeReply)
@@ -339,28 +337,24 @@ func ChOutputs() * chan Outputs{
 	}
 	return &chOutputs
 }
-//chTree                chan TreeNode
 func ChTree() *chan TreeNode{
 	if chTree == nil{
 		chTree = make(chan TreeNode)
 	}
 	return &chTree
 }
-//chMarks               chan Marks
 func ChMarks() *chan Marks{
 	if chMarks == nil{
 		chMarks = make(chan Marks)
 	}
 	return &chMarks
 }
-//chBar_config          chan BarConfig
 func ChBar_config() *chan BarConfig{
 	if chBar_config == nil{
 		chBar_config = make(chan BarConfig)
 	}
 	return &chBar_config
 }
-//chVersion             chan Version
 func ChVersion() *chan Version{
 	if chVersion == nil{
 		chVersion = make(chan Version)
