@@ -39,8 +39,6 @@ type i3State struct {
 	Workspaces map[string][]i3.Workspace
 	Bars       []i3Bar
 	now        time.Time
-	vol        uint8
-	mute       bool
 }
 
 var currentState i3State
@@ -143,7 +141,6 @@ func (state *i3State) redraw() {
 			}
 
 			//Bar icons
-			out = volumeIcon(out)
 
 			out += dzen.AlignRight(fancyTime(currentState.now), -1, BARQUALIFIED_FONTNAME)
 			bar.in.Write([]byte(out + "\n"))
@@ -171,33 +168,18 @@ func makeBars() ([]i3Bar, []i3.Output) {
 	return bars, outputs
 }
 
-//ignoreall discards all channel inputs until unlocked
-func ignoreAll(x chan i3.EventResponse) (restart func()) {
-	rtn := make(chan bool)
-	go (func(stop chan bool) {
-		for {
-			select {
-			case <-stop:
-				return
-			default:
-			}
-		}
-	})(rtn)
-	restart = (func() {
-		rtn <- true
-	})
-	return
-}
 
 var flags struct {
 	Server bool "Run in server mode, senbar-remote can be used to control senbar operation"
 	Sound  bool "Enable sound control. Requires ALSA and /dev/event/* to be readable"
 }
 
+
 func boot() {
 
 	flagschema.Set("senbar", &flags).EnableHelp("Senbar is a system bar for i3.").ParseArgs()
 
+	go i3.Listen()
 	//Subscribe to various events
 	i3.Subscribe(
 		"workspace",
@@ -211,8 +193,7 @@ func boot() {
 		i3.WorkspacesPerDisplay(),
 		bars,
 		time.Now(),
-		getVolume(),
-		false}
+	}
 
 	//Start threads
 	go (func() {
@@ -225,23 +206,21 @@ func boot() {
 		}
 	})()
 	//Process various keypress events
-	laptop()
+	chWorkspace := i3.ChWorkspaces()
 	go (func() {
 		for {
-			<-i3.ChWorkspace
+			<-chWorkspace
 			currentState.Workspaces = i3.WorkspacesPerDisplay()
 			currentState.redraw()
 		}
 	})()
-	go(func(){
-		<-time.After(3 * time.Second)
-		panic("lol")
-	})()
+	chOutput:=i3.ChOutputs()
 	for {
-		<-i3.ChOutput
+		<-chOutput
 		//Fix the desktop bgs
 		exec.Command("nitrogen", "--restore").Start()
-		restart := ignoreAll(i3.ChOutput)
+		//Don't lock everything while we are doing this.
+		close(chOutput)
 		//Record all bar processes
 		newBars, outputs := makeBars()
 		oldBars := make([]*os.Process, len(newBars))
@@ -256,8 +235,6 @@ func boot() {
 			proc.Kill()
 		}
 		currentState.redraw()
-		restart()
-
 	}
 }
 

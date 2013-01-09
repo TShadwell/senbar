@@ -256,7 +256,6 @@ type Workspace struct {
 	Rect Rectangle
 }
 
-type Workspaces []Workspace
 
 var listening bool
 
@@ -300,7 +299,7 @@ type i3Message struct {
 //Command response channels.
 var (
 	chResponse_command    chan CommandReply
-	chWorkspaces          chan Workspaces
+	chWorkspaces          chan []Workspace
 	chSubscription_result chan SubscribeReply
 	chOutputs             chan Outputs
 	chTree                chan TreeNode
@@ -309,57 +308,120 @@ var (
 	chVersion             chan Version
 )
 
+/*
+	x=(
+		("chWorkspaces", "chan []Workspace"),
+		("chSubscription_result", "chan SubscribeReply"),
+		("chOutputs", "chan Outputs"),
+		("chTree", "chan TreeNode"),
+		("chMarks", "chan Marks"),
+		("chBar_config", "chan BarConfig"),
+		("chVersion", "chan Version")
+	)
+
+	for channel, typeSpec in x:
+		print("""
+	//Function {chanGetFunction} returns a channel through which can be
+	//recieved {i3Type} typed responses, the channel is opened if
+	//it is not already.
+	func {chanGetFunction}() {chanTypeSpec}{{
+		if {chanName} == nil{{
+			{chanName} = make({chanTypeSpec})
+		}}
+		return {chanName}
+	}}
+
+	//Function Get{chanGetFunction} gets a value from {chanName}, 
+	//locking the current thread whilst doing so.
+	//If the channel were closed, it is opened, then closed after information is recieved;
+	//if it were open, it is left open afterward.
+	func Get{chanGetFunction}() {typeSpc}{{
+		wasOpen := {chanName} != nil
+		out := <-{chanName}
+		if !wasOpen{{
+			close({chanName})
+		}}
+		return out
+	}}""".format(
+		chanName = channel,
+		chanGetFunction = channel[0].upper() + channel[1:],
+		i3Type = channel[2:].upper(),
+		chanTypeSpec = typeSpec,
+		typeSpc = " ".join(typeSpec.split(" ")[1:]),
+
+	))
+*/
 
 
 
-func ChResponse_command() *chan CommandReply{
-	if chResponse_command == nil{
-		chResponse_command = make(chan CommandReply)
+//Function ChWorkspaces returns a channel through which can be
+//recieved WORKSPACES typed responses, the channel is opened if
+//it is not already.
+func ChWorkspaces() chan []Workspace{
+	if chWorkspaces == nil{
+		chWorkspaces = make(chan []Workspace)
 	}
-	return &chResponse_command
+	return chWorkspaces
 }
 
-func ChWorkspaces() *chan Workspaces{
-	if chWorkspaces == nil {
-		chWorkspaces = make(chan Workspaces)
-	}
-	return &chWorkspaces
-}
-func ChSubscription_result() *chan SubscribeReply{
+//Function ChSubscription_result returns a channel through which can be
+//recieved SUBSCRIPTION_RESULT typed responses, the channel is opened if
+//it is not already.
+func ChSubscription_result() chan SubscribeReply{
 	if chSubscription_result == nil{
 		chSubscription_result = make(chan SubscribeReply)
 	}
-	return &chSubscription_result
+	return chSubscription_result
 }
-func ChOutputs() * chan Outputs{
-	if ChOutputs == nil{
+
+//Function ChOutputs returns a channel through which can be
+//recieved OUTPUTS typed responses, the channel is opened if
+//it is not already.
+func ChOutputs() chan Outputs{
+	if chOutputs == nil{
 		chOutputs = make(chan Outputs)
 	}
-	return &chOutputs
+	return chOutputs
 }
-func ChTree() *chan TreeNode{
+
+//Function ChTree returns a channel through which can be
+//recieved TREE typed responses, the channel is opened if
+//it is not already.
+func ChTree() chan TreeNode{
 	if chTree == nil{
 		chTree = make(chan TreeNode)
 	}
-	return &chTree
+	return chTree
 }
-func ChMarks() *chan Marks{
+
+//Function ChMarks returns a channel through which can be
+//recieved MARKS typed responses, the channel is opened if
+//it is not already.
+func ChMarks() chan Marks{
 	if chMarks == nil{
 		chMarks = make(chan Marks)
 	}
-	return &chMarks
+	return chMarks
 }
-func ChBar_config() *chan BarConfig{
+
+//Function ChBar_config returns a channel through which can be
+//recieved BAR_CONFIG typed responses, the channel is opened if
+//it is not already.
+func ChBar_config() chan BarConfig{
 	if chBar_config == nil{
 		chBar_config = make(chan BarConfig)
 	}
-	return &chBar_config
+	return chBar_config
 }
-func ChVersion() *chan Version{
+
+//Function ChVersion returns a channel through which can be
+//recieved VERSION typed responses, the channel is opened if
+//it is not already.
+func ChVersion() chan Version{
 	if chVersion == nil{
 		chVersion = make(chan Version)
 	}
-	return &chVersion
+	return chVersion
 }
 
 //Event channels.
@@ -377,11 +439,11 @@ though which the errors are sent instead.
 
 If an error happens once, it may happen again, locking this channel!
 */
-func GetErrors() *chan error{
+func GetErrors() chan error{
 	if chErrors == nil{
 		chErrors = make(chan error)
 	}
-	return &chErrors
+	return chErrors
 }
 
 var i3MagicStringBytes = []byte(i3MagicString)
@@ -544,13 +606,13 @@ func StopListening()bool{
 //else it returns false.
 func StartListening() bool{
 	if !listening{
-		listen()
+		go Listen()
 		return true
 	}
 	return false
 }
 
-func listen() {
+func Listen() {
 	listening = true
 	defer func(){
 		listening = false
@@ -668,7 +730,7 @@ func listen() {
 					}
 				case WORKSPACES:
 					if chWorkspaces != nil{
-						op := make(Workspaces, 0)
+						op := make([]Workspace, 0)
 						json.Unmarshal(jsonString, &op)
 						chWorkspaces <- op
 					}
@@ -747,9 +809,9 @@ func Send(payload string, msgType requestType) {
 }
 
 //GetOutputs sends the GET_OUTPUTS signal, waits for reply
-func GetOutputs() Outputs {
+func GetOutputs(output_channel chan Outputs) Outputs {
 	Send("", GET_OUTPUTS)
-	return <-chOutputs
+	return <-output_channel
 }
 
 //GetActive outputs sends the GET_OUTPUTS signal, filters out outputs not being used.
@@ -765,21 +827,25 @@ func GetActiveOutputs() Outputs {
 }
 
 //GetWorkspaces returns an array of workspaces (desktops).
-func GetWorkspaces() Workspaces {
+func GetWorkspaces() []Workspace {
+	//Open channel to get workspaces
+	workspaceChan := GetChWorkspaces()
 	Send("", GET_WORKSPACES)
 
-	return <-chWorkspaces
+	return <-workspaceChan
 }
 
 //GetTree returns a tree of windows.
 func GetTree() TreeNode {
+	chn := GetChTree()
 	Send("", GET_TREE)
 
-	return <-chTree
+	return <-chn
 }
 
 //Subscribe -  to a list of i3 events, returns success as bool.
 func Subscribe(events ...string) bool {
+	getSubscription := GetChSubscription_result()
 	val, err := json.Marshal(events)
 	if err != nil {
 		panic("Marshalling error!")
@@ -787,19 +853,18 @@ func Subscribe(events ...string) bool {
 	Send(
 		string(val),
 		SUBSCRIBE)
-	return bool(<-chSubscription_result)
+	return bool(<-getSubscription)
 }
 
 //WorkspacesPerDisplay sorts workspaces by display; useful for status bars.
-func WorkspacesPerDisplay() map[string]Workspaces {
-	Send("", GET_WORKSPACES)
-	workspaces := <-chWorkspaces
-	cWorkspaces := make(map[string]Workspaces)
+func WorkspacesPerDisplay() map[string][]Workspace {
+	workspaces := GetWorkspaces()
+	cWorkspaces := make(map[string][]Workspace)
 
 	for _, workspace := range workspaces {
 		concernedOutput, ok := cWorkspaces[workspace.Output]
 		if ok == false {
-			cWorkspaces[workspace.Output] = Workspaces{
+			cWorkspaces[workspace.Output] = []Workspace{
 				workspace}
 		} else {
 			cWorkspaces[workspace.Output] = append(concernedOutput, workspace)
@@ -825,6 +890,4 @@ func init() {
 		Fail("Unable to connect to i3 socket!")
 	}
 	i3SocketConn = conn
-
-	go listen()
 }
