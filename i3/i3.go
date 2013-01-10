@@ -32,7 +32,7 @@
 //			fmt.Println("Output changed.")
 //		}
 //	})()
-package i3
+package i3o
 
 import (
 	"bytes"
@@ -48,32 +48,6 @@ import (
 const (
 	i3MagicString = "i3-ipc"
 	chunkSize     = 1024
-)
-
-type requestType uint8
-
-const (
-	REQUEST_COMMAND requestType = iota
-	GET_WORKSPACES
-	SUBSCRIBE
-	GET_OUTPUTS
-	GET_TREE
-	GET_MARKS
-	GET_BAR_CONFIG
-	GET_VERSION
-)
-
-type responseType uint8
-
-const (
-	RESPONSE_COMMAND responseType = iota
-	WORKSPACES
-	SUBSCRIPTION_RESULT
-	OUTPUTS
-	TREE
-	MARKS
-	BAR_CONFIG
-	VERSION
 )
 
 type eventType uint8
