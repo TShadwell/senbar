@@ -1,6 +1,6 @@
 ###Senbar
 
-A taskbar for i3.
+A (rather buggy) taskbar for i3. This was written when I was experimenting with Go's aynchrony, and the syntax for the i3 package will likely be rewritten soon such that it doesn't lock up inexplicably after ~8-10 hours.
 
 To get it, do this:
 
