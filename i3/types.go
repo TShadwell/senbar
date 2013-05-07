@@ -41,15 +41,15 @@ type (
 
 	undefinedType []byte
 	Conn          struct {
-		Event struct{
-			Workspace struct{
-				Focus func(current, old *TreeNode)
-				Init func()
-				Empty func()
+		Event struct {
+			Workspace struct {
+				Focus  func(current, old *TreeNode)
+				Init   func()
+				Empty  func()
 				Urgent func()
 			}
 			Output func()
-			Mode func(modeName string)
+			Mode   func(modeName string)
 			Window func(parent TreeNode)
 		}
 		conn io.ReadWriteCloser
@@ -71,7 +71,7 @@ type (
 	EventType   uint8
 	borderType  uint8
 	layoutType  uint8
-	Mark string
+	Mark        string
 	Workspace   struct {
 		Number uint
 		Name   string
@@ -96,10 +96,10 @@ type (
 		Nodes []TreeNode
 	}
 	Output struct {
-		Name string
-		Active bool
+		Name             string
+		Active           bool
 		CurrentWorkspace uint `json:"current_workspace"`
-		Rect Rect //#rekt
+		Rect             Rect //#rekt
 		Width,
 		Height uint
 	}
@@ -115,15 +115,15 @@ type (
 		Width,
 		Height uint
 	}
-	changeEvent struct{
+	changeEvent struct {
 		Change string
 	}
-	workspaceEvent struct{
+	workspaceEvent struct {
 		changeEvent
 		Old,
 		Current *TreeNode
 	}
-	windowEvent struct{
+	windowEvent struct {
 		Container TreeNode
 	}
 )

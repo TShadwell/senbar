@@ -118,18 +118,18 @@ func (c *Conn) Workspaces() (ws []Workspace, err error) {
 	return
 }
 
-func (c *Conn) Tree() (root TreeNode, err error){
+func (c *Conn) Tree() (root TreeNode, err error) {
 	err = c.sendMessage(uint32(Message_Get_tree))
-	if err != nil{
+	if err != nil {
 		return
 	}
 	err = json.Unmarshal(*<-c.get_tree, &root)
 	return
 }
 
-func (c *Conn) Marks() (marks []Mark, err error){
+func (c *Conn) Marks() (marks []Mark, err error) {
 	err = c.sendMessage(uint32(Message_Get_Marks))
-	if err != nil{
+	if err != nil {
 		return
 	}
 	err = json.Unmarshal(*<-c.get_marks, &marks)
@@ -142,24 +142,24 @@ func (c *Conn) Marks() (marks []Mark, err error){
 
 	You can use the more abstracted Subscribe calls instead.
 */
-func (c *Conn) Subscribe(events ...Event) (success bool, err error){
+func (c *Conn) Subscribe(events ...Event) (success bool, err error) {
 	var byt []byte
 	byt, err = json.Marshal(events)
-	if err != nil{
+	if err != nil {
 		return
 	}
 	err = c.sendMessage(uint32(Message_Subscribe), byt...)
 	var response []successReply
 	err = json.Unmarshal(*<-c.subscribe, &response)
-	if err != nil{
+	if err != nil {
 		return
 	}
 	return response[0].Success, err
 }
 
-func (c *Conn) Outputs() (o []Output, err error){
+func (c *Conn) Outputs() (o []Output, err error) {
 	err = c.sendMessage(uint32(Message_Get_Outputs))
-	if err != nil{
+	if err != nil {
 		return
 	}
 	err = json.Unmarshal(*<-c.get_outputs, &o)
@@ -195,49 +195,49 @@ func (c *Conn) handlePayload(j *json.RawMessage, typ interface{}) (err error) {
 		case Event_Workspace:
 			var ev workspaceEvent
 			err = json.Unmarshal(*j, &ev)
-			if err != nil{
+			if err != nil {
 				return
 			}
-			switch ev.Change{
+			switch ev.Change {
 			case "focus":
-				if c.Event.Workspace.Focus != nil{
+				if c.Event.Workspace.Focus != nil {
 					c.Event.Workspace.Focus(ev.Current, ev.Old)
 				}
 			case "init":
-				if c.Event.Workspace.Init != nil{
+				if c.Event.Workspace.Init != nil {
 					c.Event.Workspace.Init()
 				}
 			case "empty":
-				if c.Event.Workspace.Empty != nil{
+				if c.Event.Workspace.Empty != nil {
 					c.Event.Workspace.Empty()
 				}
 			case "urgent":
-				if c.Event.Workspace.Urgent != nil{
+				if c.Event.Workspace.Urgent != nil {
 					c.Event.Workspace.Urgent()
 				}
 			default:
 				return errors.New("Invalid WorkspaceEvent: " + ev.Change + ".")
 			}
 		case Event_Output:
-			if c.Event.Output != nil{
+			if c.Event.Output != nil {
 				c.Event.Output()
 			}
 		case Event_Mode:
 			var ch changeEvent
 			err = json.Unmarshal(*j, &ch)
-			if err != nil{
+			if err != nil {
 				return
 			}
-			if c.Event.Mode != nil{
+			if c.Event.Mode != nil {
 				c.Event.Mode(ch.Change)
 			}
 		case Event_Window:
 			var we windowEvent
 			err = json.Unmarshal(*j, &we)
-			if err != nil{
+			if err != nil {
 				return
 			}
-			if c.Event.Window != nil{
+			if c.Event.Window != nil {
 				c.Event.Window(we.Container)
 			}
 
