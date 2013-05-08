@@ -1,243 +1,116 @@
 package main
 
 import (
-	"github.com/TShadwell/senbar/dzen"
-	"github.com/TShadwell/senbar/flagschema"
-	"github.com/TShadwell/senbar/i3"
-
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
-	"strconv"
-	"strings"
-	"time"
+	"github.com/BurntSushi/xgb/xproto"
+	"github.com/BurntSushi/xgbutil"
+	"github.com/BurntSushi/xgbutil/ewmh"
+	"github.com/BurntSushi/xgbutil/xwindow"
+	i3lib "github.com/TShadwell/senbar/i3"
 )
 
 const (
-	BARHEIGHT                 = 12
-	BARFONT                   = "clean"
-	BARQUALIFIED_FONTNAME     = "-*-" + BARFONT + "-*-*-*-*-*-*-*-*-*-*-*-*"
-	BARFG                     = "#efa603"
-	BARBG                     = "#0c0201"
-	TIMECOLOUR                = "#ffffff"
-	SELECTED_RECTANGLE_SIZE   = 5
-	SELECTED_RECTANGLE_COLOUR = "#FFFFFF"
-	VISIBLE_FG                = BARBG
-	VISIBLE_BG                = BARFG
-	SOUND_FG                  = TIMECOLOUR
-	DESKNUM_PADDING           = 3
+	Bar_Height       = 15
+	Background_Color = 0x0c0201
+	Name             = "senbar"
 )
 
-type i3Bar struct {
-	output  i3.Output
-	process *exec.Cmd
-	in      io.WriteCloser
-}
-type i3State struct {
-	Outputs    []i3.Output
-	Workspaces map[string][]i3.Workspace
-	Bars       []i3Bar
-	now        time.Time
-}
-
-var currentState i3State
-var polling bool
-
-func (bar *i3Bar) spawn() {
-	bar.process = exec.Command(
-		"dzen2",
-		"-x", strconv.Itoa(int(bar.output.Rect.X)),
-		"-y", strconv.Itoa(int(bar.output.Rect.Y)),
-		"-w", strconv.Itoa(int(bar.output.Rect.Width)),
-		"-h", strconv.Itoa(int(BARHEIGHT)),
-		"-e", "''",
-		"-fn", BARFONT,
-		"-bg", BARBG,
-		"-fg", BARFG,
-		"-ta", "l",
-		"-dock")
-	pipe, err := bar.process.StdinPipe()
-	bar.in = pipe
+func main() {
+	//Connnect to i3
+	i3, err := i3lib.Attach()
 	if err != nil {
 		panic(err)
 	}
-	bar.process.Start()
-}
-func shell(fun string, arg ...string) (string, error) {
-	cmd := exec.Command(fun, arg...)
-	out, err := cmd.Output()
-	return string(out), err
-}
-func muteSound() {
-	exec.Command("amixer", "set", "\"Master\"", "mute").Run()
-}
-func remove(bar []i3Bar, pos uint) {
-	bar[pos], bar = bar[len(bar)-1], bar[:len(bar)-1]
-}
-func ordinal(num uint64) string {
-	units := uint8(string(num)[0])
-	if units < 4 {
-		return []string{
-			"th",
-			"st",
-			"nd",
-			"rd",
-		}[units]
-	}
-	return "th"
+	//Connect to X
+	X, err := xgbutil.NewConn()
 
-}
-func ampmHour(hor int) int {
-	if hor == 0 {
-		return 12
+	lock := make(chan bool)
+	if err != nil {
+		panic(err)
+		lock <- true
 	}
-	return hor
-}
-func fancyTime(d time.Time) string {
-	day := d.Day()
-	var ampm string
-	if d.Hour() > 12 {
-		ampm = "pm"
-	} else {
-		ampm = "am"
+	go func() {
+		panic(i3.Listen())
+	}()
+	op, err := i3.Outputs()
+	if err != nil {
+		panic(err)
 	}
-	return fmt.Sprintf("%s, %s %d%s- ^fg("+TIMECOLOUR+")%02d:%02d%s^fg()",
-		d.Weekday().String(),
-		d.Month().String(),
-		day,
-		ordinal(uint64(day)),
-		ampmHour(d.Hour()%12),
-		d.Minute(),
-		ampm)
-}
-func (state *i3State) redraw() {
-	toKill := make([]uint, 0)
-	for i, bar := range state.Bars {
-		//Check still bound to active output
-		workspaces, ok := state.Workspaces[bar.output.Name]
-		if ok {
-			out := ""
-			for _, workspace := range workspaces {
-				if workspace.Focused {
-					out += "^fg(" + VISIBLE_FG + ")^bg(" + VISIBLE_BG + ")"
-				}
-				numString := strconv.Itoa(int(workspace.Num))
-				out += "^r(" + strconv.Itoa(DESKNUM_PADDING+SELECTED_RECTANGLE_SIZE) + "x0)" + numString
-				if workspace.Name != numString {
-					if workspace.Num == 0 {
-						out += workspace.Name
-					} else {
-						out += " : " + strings.Trim(workspace.Name, numString)
-					}
-				}
-				out += "^fg(" + SELECTED_RECTANGLE_COLOUR + ")^r(" + strconv.Itoa(DESKNUM_PADDING) + "x0)^p(_TOP)^p(-2)"
-				if workspace.Visible {
-					out += "^r"
-				} else {
-					out += "^ro"
-				}
-				out += "(" + strconv.Itoa(SELECTED_RECTANGLE_SIZE) + "x" + strconv.Itoa(SELECTED_RECTANGLE_SIZE) + ")^p()^fg()^bg()"
+
+	bars := make([]*xwindow.Window, len(op))
+
+	for i, v := range op {
+		if v.Active {
+			bars[i] = xwindow.Must(xwindow.Generate(X))
+			defer bars[i].Destroy()
+
+			bars[i].Create(
+				X.RootWin(),
+				int(v.Rect.X),
+				int(v.Rect.Y),
+				int(v.Rect.Width),
+				Bar_Height,
+				xproto.CwBackPixel,
+				Background_Color,
+			)
+			bars[i].Map()
+			err = ewmh.WmWindowTypeSet(
+				X,
+				bars[i].Id,
+				[]string{"_NET_WM_WINDOW_TYPE_DOCK"},
+			)
+			if err != nil {
+				panic(err)
+			}
+			err = ewmh.WmStateSet(
+				X,
+				bars[i].Id,
+				[]string{
+					"_NET_WM_STATE_ABOVE",
+					"_NET_WM_STATE_STICKY",
+				},
+			)
+			if err != nil {
+				panic(err)
 			}
 
-			//Bar icons
+			err = ewmh.WmNameSet(
+				X,
+				bars[i].Id,
+				Name,
+			)
 
-			out += dzen.AlignRight(fancyTime(currentState.now), -1, BARQUALIFIED_FONTNAME)
-			bar.in.Write([]byte(out + "\n"))
-		} else {
-			toKill = append(toKill, uint(i))
+			if err != nil {
+				panic(err)
+			}
+
+			//Make struts
+			if err != nil {
+				panic(err)
+			}
+			err = ewmh.WmStrutPartialSet(
+				X,
+				bars[i].Id,
+				&ewmh.WmStrutPartial{
+					Top:       Bar_Height,
+					TopStartX: v.Rect.X,
+					TopEndX:   v.Rect.X + v.Rect.Width - 1,
+				},
+			)
+
+			//Look, I have no idea, but Dzen2 does it, okay.
+			err = ewmh.WmDesktopSet(
+				X,
+				bars[i].Id,
+				4294967295,
+			)
+			if err != nil {
+				panic(err)
+			}
+
 		}
 	}
-	if len(toKill) > 0 {
-		for _, n := range toKill {
-			remove(state.Bars, n)
-		}
-	}
-}
+	fmt.Println("Locking...")
+	<-lock
 
-func makeBars() ([]i3Bar, []i3.Output) {
-	outputs := i3.GetActiveOutputs()
-	//Make the slice that will store the bars
-	bars := make([]i3Bar, len(outputs))
-	//Make a bar for each output
-	for i, output := range outputs {
-		bars[i] = i3Bar{}
-		bars[i].output = output
-		bars[i].spawn()
-	}
-	return bars, outputs
-}
-
-
-var flags struct {
-	Server bool "Run in server mode, senbar-remote can be used to control senbar operation"
-	Sound  bool "Enable sound control. Requires ALSA and /dev/event/* to be readable"
-}
-
-
-func boot() {
-
-	flagschema.Set("senbar", &flags).EnableHelp("Senbar is a system bar for i3.").ParseArgs()
-
-	go i3.Listen()
-	//Subscribe to various events
-	i3.Subscribe(
-		"workspace",
-		"output",
-	)
-
-	//Set initial state
-	bars, outputs := makeBars()
-	currentState = i3State{
-		outputs,
-		i3.WorkspacesPerDisplay(),
-		bars,
-		time.Now(),
-	}
-
-	//Start threads
-	go (func() {
-		for {
-			now := time.Now()
-			currentState.now = now
-			currentState.redraw()
-			//Sleep until the next minute.
-			time.Sleep(time.Duration(int64(60)-int64(now.Second())) * time.Second)
-		}
-	})()
-	//Process various keypress events
-	chWorkspace := i3.ChWorkspaces()
-	go (func() {
-		for {
-			<-chWorkspace
-			currentState.Workspaces = i3.WorkspacesPerDisplay()
-			currentState.redraw()
-		}
-	})()
-	chOutput:=i3.ChOutputs()
-	for {
-		<-chOutput
-		//Fix the desktop bgs
-		exec.Command("nitrogen", "--restore").Start()
-		//Don't lock everything while we are doing this.
-		close(chOutput)
-		//Record all bar processes
-		newBars, outputs := makeBars()
-		oldBars := make([]*os.Process, len(newBars))
-		for i, bar := range currentState.Bars {
-			oldBars[i] = bar.process.Process
-		}
-		//Replace bars with new bars
-		currentState.Bars = newBars
-		currentState.Outputs = outputs
-		//Kill off old bar processes
-		for _, proc := range oldBars {
-			proc.Kill()
-		}
-		currentState.redraw()
-	}
-}
-
-func main() {
-	boot()
 }
